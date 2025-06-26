@@ -151,7 +151,7 @@ def chat():
     
     while True:
         user_input = input("You: ")
-        print(f"Question:" {user_input}")
+        print(f"Question: {user_input}")
         
         if user_input.lower() == "exit":
             print("Goodbye!")
