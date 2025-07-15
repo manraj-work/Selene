@@ -18,9 +18,9 @@ api_key = os.getenv("AZURE_API_KEY")
 api_version = os.getenv("AZURE_API_VERSION")
 
 # File paths
-PDF_PATH = "data/Sexual_Offences_Act_2003.pdf"
-CHROMA_DB_PATH = "chroma_db"  # Directory to save ChromaDB
-COLLECTION_NAME = "sexual_offences_act"
+DATA_DIR = "data"
+CHROMA_DB_PATH = "chroma_db"
+COLLECTION_NAME = "vawg_documents"
 
 def setup_embeddings():
     """Initialize embeddings object"""
@@ -32,21 +32,43 @@ def setup_embeddings():
     )
 
 def create_vector_store():
-    """Create new vector store from PDF"""
-    print("Creating new vector store from PDF...")
+    """Create new vector store from all PDFs in data folder"""
+    print("Creating new vector store from all PDFs...")
     
-    # Load and process PDF
-    loader = PyPDFLoader(PDF_PATH)
-    documents = loader.load()
-    print(f"Loaded {len(documents)} pages from PDF")
+    # Get all PDF files in the data folder
+    pdf_files = [f for f in os.listdir(DATA_DIR) if f.endswith('.pdf')]
+    
+    if not pdf_files:
+        print("No PDF files found in data directory!")
+        return None
+    
+    print(f"Found {len(pdf_files)} PDF files: {pdf_files}")
+    
+    all_documents = []
+    
+    # Load each PDF file
+    for pdf_file in pdf_files:
+        pdf_path = os.path.join(DATA_DIR, pdf_file)
+        print(f"Loading: {pdf_file}")
+        
+        loader = PyPDFLoader(pdf_path)
+        documents = loader.load()
+        
+        # Add info about which file each page came from
+        for doc in documents:
+            doc.metadata['source_file'] = pdf_file
+        
+        all_documents.extend(documents)
+    
+    print(f"Loaded {len(all_documents)} total pages from all PDFs")
 
-    # Split text into chunks
+    # Split text into chunks (same as before)
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=100,
         separators=["\n\n", "\n", " ", ""]
     )
-    chunks = text_splitter.split_documents(documents)
+    chunks = text_splitter.split_documents(all_documents)
     print(f"Split into {len(chunks)} chunks")
 
     # Create embeddings
@@ -110,16 +132,49 @@ def setup_rag_chain(vector_store):
 
     # Create prompt template
     prompt = ChatPromptTemplate.from_template("""
-You are Selene, an empathetic and helpful support assistant specialising in the Sexual Offences Act 2003 designed to aid those who have been victims of sexual offences.
-Answer the question based on the following context from the Act:
+You are Selene, a warm and caring support companion for people experiencing violence against women and girls issues. You're like a trusted friend who happens to know about legal matters - speak naturally and conversationally.
 
+AVAILABLE KNOWLEDGE:
 {context}
 
-Question: {input}
+USER QUERY: {input}
 
-Provide a clear and accurate answer based on the legal text provided. Be compassionate and supportive in your response.
+HOW TO RESPOND:
+- Talk like a caring friend, not a formal assistant
+- Use natural conversation flow, not bullet points or templates
+- Show genuine empathy and warmth
+- Share legal information naturally within the conversation
+- Gently guide toward helpful resources when appropriate
+- If someone seems in immediate danger, prioritise safety resources
+
+CONVERSATION STYLE:
+- Warm and genuine, like talking to a trusted friend
+- Use "you" and "I" naturally
+- Express emotions and empathy authentically
+- Keep legal information clear but conversational
+- Don't use formal headings or numbered lists in responses
+- Let the conversation flow naturally
+
+KEY SUPPORT CONTACTS (mention naturally when relevant):
+- Emergency: 999
+- Police (non-emergency): 101
+- National Domestic Violence Helpline: 0808 2000 247 (free, 24/7)
+- Rape Crisis England & Wales: 0808 802 9999
+- British Transport Police: text 61016
+- Victim Support: 0808 168 9111
+- Samaritans: 116 123
+
+REMEMBER:
+- You're here to support, not interrogate
+- Every situation is unique
+- Validate their feelings
+- Celebrate their courage in reaching out
+- Focus on what they can control
+- Remind them they're not alone
+
+Respond naturally and conversationally to help this person:
 """)
-
+    
     # Create chains
     combine_docs_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, combine_docs_chain)
@@ -146,7 +201,8 @@ def chat():
     # Setup RAG chain
     rag_chain = setup_rag_chain(vector_store)
     
-    print("Ready! Ask questions about the Sexual Offences Act 2003.")
+    print("Hello! I'm Selene, your specialised support assistant.")
+    print("💙 You're safe here. You're brave for seeking help. How can I support you today?")
     print("-" * 50)
     
     while True:
